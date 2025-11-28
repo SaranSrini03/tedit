@@ -88,3 +88,98 @@ Fixed 6 critical bugs:
 - Add rate limiting for canvas state requests
 - Consider using Redis for shared canvas state in production
 
+---
+
+## November 28, 2025 - Thursday (Continued)
+
+### UI/UX Improvements
+
+**Time:** 23:44:28 (Evening session)
+
+#### 1. Tool Organization - Photoshop-Style Folders
+- **Problem:** Too many tools cluttering the sidebar
+- **Solution:** Organized tools into logical folders with right-click menus
+- **Implementation:**
+  - Created `ToolFolderMenu` component for dropdown menus
+  - Reorganized `toolGroups` in `constants.ts` into 9 folders:
+    - **Drawing**: Brush, Pencil, Eraser
+    - **Selection**: Select, Rect Select, Lasso
+    - **Shapes**: Rectangle, Ellipse, Line
+    - **Paint**: Fill, Eyedropper
+    - **Effects**: Blur, Sharpen, Filters
+    - **Utility**: Zoom, Move, Transform, Snap
+    - **Text**: Text
+    - **Magic**: Magic, BG Remove
+    - **Adjustments**: Blend
+  - Left-click: Cycles through tools in folder
+  - Right-click: Opens context menu with all tools
+  - Visual indicator: Small dot on folders with multiple tools
+- **Files Modified:**
+  - `frontend/lib/constants.ts` - Added `ToolGroup` interface and `toolGroups` array
+  - `frontend/lib/types.ts` - Updated `ToolId` type with new tool IDs
+  - `frontend/components/tool-sidebar.tsx` - Integrated folder menu system
+  - `frontend/components/tool-folder-menu.tsx` - New component for folder dropdowns
+
+#### 2. Selection Tools in Toolbar
+- Added quick access selection tools to top toolbar
+- Three selection buttons: Select, Rect Select, Lasso
+- Active tool highlighting with white background
+- **Files Modified:**
+  - `frontend/components/toolbar.tsx` - Added selection tools section
+  - `frontend/components/document-editor.tsx` - Passed `onToolSelect` to Toolbar
+
+#### 3. Text Tool with Smart Color Detection
+- **Feature:** Automatic text color adjustment based on background
+- **Implementation:**
+  - Added `getPixelColor()` - Reads pixel color at specific point
+  - Added `isBackgroundWhite()` - Detects white/light backgrounds (RGB > 240)
+  - Added `getTextColorForBackground()` - Returns black for white backgrounds, default color otherwise
+  - Added `renderText()` - Smart text rendering function
+- **Behavior:**
+  - Automatically uses **black text** when background is white
+  - Uses provided color (or strokeColor) for dark backgrounds
+- **Files Modified:**
+  - `frontend/hooks/use-canvas.ts` - Added background detection and smart text rendering
+
+#### 4. Folder Menu Styling
+- **Problem:** Folder dropdown menu had dark background, hard to read
+- **Solution:** Changed to white background with black text
+- **Changes:**
+  - Background: `bg-black/95` → `bg-white`
+  - Border: `border-white/20` → `border-gray-300`
+  - Text: All items now use `!text-black` (forced with important)
+  - Header: Changed to black text for better contrast
+  - Hover states: Gray backgrounds (`bg-gray-100`, `bg-gray-200`)
+- **Files Modified:**
+  - `frontend/components/tool-folder-menu.tsx` - Complete styling overhaul
+
+### Technical Details
+
+**Tool Organization:**
+- Tools grouped by functionality for better UX
+- Folder system similar to Photoshop's tool organization
+- Right-click context menus for quick tool access
+- Visual feedback with active state highlighting
+
+**Text Rendering:**
+- Canvas pixel reading for background detection
+- Automatic contrast adjustment for readability
+- Works with any text rendering function
+
+**UI Improvements:**
+- Better visual hierarchy with folder organization
+- Improved readability with white background menus
+- Consistent styling across tool interfaces
+
+### Testing Notes
+- Tool folders work correctly with left and right-click
+- Selection tools accessible from both sidebar and toolbar
+- Text color detection works for white backgrounds
+- Folder menus display correctly with black text on white
+
+### Next Steps
+- Implement full text tool with editing capabilities
+- Add more tool categories as needed
+- Consider adding keyboard shortcuts for tool switching
+- Add tooltips for better discoverability
+
