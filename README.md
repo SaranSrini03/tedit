@@ -1,4 +1,4 @@
-## Tedit – collaborative canvas editor
+## Tedit – collaborative photo editor
 
 Tedit is a collaborative drawing and layout tool built with Next.js. It gives you a shared canvas where multiple people can draw and edit together in real time.
 
