@@ -78,7 +78,13 @@ export function CanvasRenderer({
         style={{ width: "100%", height: "100%" }}
       />
       <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs font-semibold text-white">
-        {activeTool === "eraser" ? "Eraser" : "Brush"} • {brushSize}px
+        {activeTool === "eraser"
+          ? "Eraser"
+          : activeTool === "pencil"
+            ? "Pencil"
+            : activeTool === "brush"
+              ? "Brush"
+              : activeTool} • {brushSize}px
       </div>
       {isDragging && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-dashed border-sky-500 bg-black/40 text-sm font-semibold text-white">

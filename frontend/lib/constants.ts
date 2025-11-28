@@ -9,6 +9,7 @@ import {
   Focus,
   MousePointer2,
   PaintBucket,
+  Pen,
   Pipette,
   RectangleHorizontal,
   Ruler,
@@ -20,33 +21,119 @@ import {
 } from "lucide-react";
 import type { ToolId, Layer, HistoryEntry } from "./types";
 
-export const toolset: Array<{
+export interface Tool {
   id: ToolId;
   label: string;
   icon: LucideIcon;
-}> = [
-  { id: "brush", label: "Brush", icon: Brush },
-  { id: "eraser", label: "Erase", icon: Eraser },
-  { id: "select", label: "Select", icon: MousePointer2 },
-  { id: "fill", label: "Fill", icon: PaintBucket },
-  { id: "text", label: "Text", icon: Type },
-  { id: "magic", label: "Magic", icon: Wand2 },
-  { id: "adjustments", label: "Blend", icon: Blend },
-  { id: "zoom", label: "Zoom", icon: ZoomIn },
-   { id: "transform", label: "Transform", icon: Crop },
-   { id: "move", label: "Move", icon: RectangleHorizontal },
-   { id: "eyedropper", label: "Eyedropper", icon: Pipette },
-   { id: "shape-rect", label: "Rectangle", icon: RectangleHorizontal },
-  { id: "shape-ellipse", label: "Ellipse", icon: Circle },
-   { id: "shape-line", label: "Line", icon: Ruler },
-   { id: "select-rect", label: "Rect Select", icon: MousePointer2 },
-  { id: "select-lasso", label: "Lasso", icon: Wand2 },
-   { id: "blur", label: "Blur", icon: Droplet },
-   { id: "sharpen", label: "Sharpen", icon: Focus },
-   { id: "filters", label: "Filters", icon: Contrast },
-   { id: "bg-remove", label: "BG Remove", icon: Sparkles },
-   { id: "snap", label: "Snap", icon: Ruler },
+}
+
+export interface ToolFolder {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  tools: Tool[];
+  defaultTool: ToolId;
+}
+
+export const toolFolders: ToolFolder[] = [
+  {
+    id: "drawing",
+    label: "Drawing",
+    icon: Brush,
+    defaultTool: "brush",
+    tools: [
+      { id: "brush", label: "Brush", icon: Brush },
+      { id: "pencil", label: "Pencil", icon: Pen },
+      { id: "eraser", label: "Eraser", icon: Eraser },
+    ],
+  },
+  {
+    id: "selection",
+    label: "Selection",
+    icon: MousePointer2,
+    defaultTool: "select",
+    tools: [
+      { id: "select", label: "Select", icon: MousePointer2 },
+      { id: "select-rect", label: "Rect Select", icon: RectangleHorizontal },
+      { id: "select-lasso", label: "Lasso", icon: Wand2 },
+    ],
+  },
+  {
+    id: "shapes",
+    label: "Shapes",
+    icon: Circle,
+    defaultTool: "shape-rect",
+    tools: [
+      { id: "shape-rect", label: "Rectangle", icon: RectangleHorizontal },
+      { id: "shape-ellipse", label: "Ellipse", icon: Circle },
+      { id: "shape-line", label: "Line", icon: Ruler },
+    ],
+  },
+  {
+    id: "paint",
+    label: "Paint",
+    icon: PaintBucket,
+    defaultTool: "fill",
+    tools: [
+      { id: "fill", label: "Fill", icon: PaintBucket },
+      { id: "eyedropper", label: "Eyedropper", icon: Pipette },
+    ],
+  },
+  {
+    id: "effects",
+    label: "Effects",
+    icon: Droplet,
+    defaultTool: "blur",
+    tools: [
+      { id: "blur", label: "Blur", icon: Droplet },
+      { id: "sharpen", label: "Sharpen", icon: Focus },
+      { id: "filters", label: "Filters", icon: Contrast },
+    ],
+  },
+  {
+    id: "utility",
+    label: "Utility",
+    icon: ZoomIn,
+    defaultTool: "zoom",
+    tools: [
+      { id: "zoom", label: "Zoom", icon: ZoomIn },
+      { id: "move", label: "Move", icon: RectangleHorizontal },
+      { id: "transform", label: "Transform", icon: Crop },
+      { id: "snap", label: "Snap", icon: Ruler },
+    ],
+  },
+  {
+    id: "text",
+    label: "Text",
+    icon: Type,
+    defaultTool: "text",
+    tools: [
+      { id: "text", label: "Text", icon: Type },
+    ],
+  },
+  {
+    id: "magic",
+    label: "Magic",
+    icon: Wand2,
+    defaultTool: "magic",
+    tools: [
+      { id: "magic", label: "Magic", icon: Wand2 },
+      { id: "bg-remove", label: "BG Remove", icon: Sparkles },
+    ],
+  },
+  {
+    id: "adjustments",
+    label: "Adjustments",
+    icon: Blend,
+    defaultTool: "adjustments",
+    tools: [
+      { id: "adjustments", label: "Blend", icon: Blend },
+    ],
+  },
 ];
+
+// Flattened toolset for backward compatibility
+export const toolset: Tool[] = toolFolders.flatMap((folder) => folder.tools);
 
 export const menuItems = [
   "Edit",

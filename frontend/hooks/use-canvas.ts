@@ -264,6 +264,39 @@ export function useCanvas({
     };
   }, [prepareCanvas, restoreCanvas, persistCanvas]);
 
+  // Helper function to get pixel color at a point
+  const getPixelColor = useCallback((x: number, y: number): { r: number; g: number; b: number; a: number } | null => {
+    const canvas = canvasRef.current;
+    const context = contextRef.current;
+    if (!canvas || !context) return null;
+
+    try {
+      const imageData = context.getImageData(Math.floor(x), Math.floor(y), 1, 1);
+      const [r, g, b, a] = imageData.data;
+      return { r, g, b, a };
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  // Helper function to check if background is white (or very light)
+  const isBackgroundWhite = useCallback((x: number, y: number): boolean => {
+    const pixel = getPixelColor(x, y);
+    if (!pixel) return true; // Default to white if can't read
+    
+    // Check if pixel is white or very light (threshold: RGB > 240)
+    const isLight = pixel.r > 240 && pixel.g > 240 && pixel.b > 240;
+    return isLight;
+  }, [getPixelColor]);
+
+  // Helper function to get appropriate text color based on background
+  const getTextColorForBackground = useCallback((x: number, y: number, defaultColor: string): string => {
+    if (isBackgroundWhite(x, y)) {
+      return "#000000"; // Black text on white background
+    }
+    return defaultColor; // Use provided color for dark backgrounds
+  }, [isBackgroundWhite]);
+
   const getPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -303,15 +336,21 @@ export function useCanvas({
 
   const startDrawing = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
-      if (activeTool !== "brush" && activeTool !== "eraser") return;
+      if (activeTool !== "brush" && activeTool !== "pencil" && activeTool !== "eraser") return;
       const point = getPoint(event);
       if (!point) return;
       const context = contextRef.current;
       if (!context) return;
       context.strokeStyle = activeTool === "eraser" ? "#f8fafc" : strokeColor;
       context.lineWidth = brushSize;
-      context.lineCap = "round";
-      context.lineJoin = "round";
+      // Pencil uses hard edge, brush uses soft edge
+      if (activeTool === "pencil") {
+        context.lineCap = "square";
+        context.lineJoin = "miter";
+      } else {
+        context.lineCap = "round";
+        context.lineJoin = "round";
+      }
       context.beginPath();
       context.moveTo(point.x, point.y);
       isDrawingRef.current = true;
@@ -409,6 +448,34 @@ export function useCanvas({
     [onDrawComplete, persistCanvas, enableRealtime, broadcastCanvasUpdate],
   );
 
+  const renderText = useCallback(
+    (x: number, y: number, text: string, fontSize: number = brushSize * 2, color?: string) => {
+      const canvas = canvasRef.current;
+      const context = contextRef.current;
+      if (!canvas || !context || !text.trim()) return;
+
+      // Determine text color: if background is white, use black; otherwise use provided color or strokeColor
+      const textColor = color || getTextColorForBackground(x, y, strokeColor);
+
+      context.save();
+      context.font = `${fontSize}px sans-serif`;
+      context.fillStyle = textColor;
+      context.textBaseline = "top";
+      context.fillText(text, x, y);
+      context.restore();
+
+      persistCanvas();
+      onDrawComplete(`Added text: "${text.substring(0, 20)}${text.length > 20 ? "..." : ""}"`);
+
+      // Broadcast text addition for real-time
+      if (enableRealtime) {
+        const dataUrl = canvas.toDataURL("image/png");
+        broadcastCanvasUpdate(dataUrl);
+      }
+    },
+    [brushSize, strokeColor, persistCanvas, onDrawComplete, enableRealtime, broadcastCanvasUpdate, getTextColorForBackground]
+  );
+
   return {
     canvasRef,
     startDrawing,
@@ -417,6 +484,9 @@ export function useCanvas({
     prepareCanvas,
     drawImageOnCanvas,
     restoreCanvas,
+    getTextColorForBackground,
+    isBackgroundWhite,
+    renderText,
   };
 }
 

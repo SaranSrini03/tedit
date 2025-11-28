@@ -274,6 +274,7 @@ export function DocumentEditor({
         isHandToolActive={isHandTool}
         onBrushSizeChange={adjustBrushSize}
         onHandToolToggle={() => setIsHandTool((prev) => !prev)}
+        onToolSelect={setActiveTool}
       />
 
       <div className="flex flex-1 overflow-hidden">
