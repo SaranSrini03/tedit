@@ -73,6 +73,34 @@ export function initializeWebSocketServer(httpServer: HTTPServer) {
       });
     });
 
+    // Request current canvas state from other users in the room
+    socket.on("request-canvas-state", (documentId: string) => {
+      // Ask other users in the room to send their current canvas state
+      socket.to(documentId).emit("request-canvas-state", {
+        requesterId: socket.id,
+        documentId,
+      });
+    });
+
+    // Send canvas state to a specific requester
+    socket.on("send-canvas-state", (data: {
+      documentId: string;
+      dataUrl: string;
+      targetUserId?: string;
+    }) => {
+      if (data.targetUserId) {
+        // Send to specific user (response to request)
+        socket.to(data.targetUserId).emit("canvas-update", {
+          dataUrl: data.dataUrl,
+        });
+      } else {
+        // Broadcast to all others (general update)
+        socket.to(data.documentId).emit("canvas-update", {
+          dataUrl: data.dataUrl,
+        });
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log(`Client disconnected: ${socket.id}`);
       

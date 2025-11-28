@@ -35,8 +35,10 @@ Tedit is a collaborative drawing and layout tool built with Next.js. It gives yo
   - `package.json` – backend scripts (`dev`, `build`, `start`)  
 - **root**  
   - `.gitignore` – ignores all `node_modules`, Next build output, and local canvas data  
-  - `FEATURES.md` – detailed feature list and roadmap  
-  - `LIVE_COLLABORATION.md`, `SHARING_FLOW.md` – design notes for collaboration and sharing flows  
+  - `MD/` – documentation files  
+    - `DEPLOYMENT.md` – step-by-step deployment guide for Vercel and Railway  
+    - `FEATURES.md` – detailed feature list and roadmap  
+    - `LIVE_COLLABORATION.md`, `SHARING_FLOW.md` – design notes for collaboration and sharing flows  
 
 ### key features (current)
 
@@ -94,13 +96,14 @@ Open `http://localhost:3000`, create or open a document, and draw in two browser
 
 ### deployment overview
 
-- **Frontend**: deploy `frontend/` as a Next.js app to Vercel.  
-  - Build: `npm run build`  
-  - Set `NEXT_PUBLIC_WS_URL` in Vercel project settings to the public URL of the backend.  
-- **Backend**: deploy `backend/` to a Node host that supports long-lived processes (Railway, Fly.io, Render, etc.).  
-  - Build: `npm run build`  
-  - Start: `npm start`  
-  - Set `FRONTEND_ORIGIN` to your Vercel URL (for example, `https://your-app.vercel.app`).  
+See [MD/DEPLOYMENT.md](MD/DEPLOYMENT.md) for detailed step-by-step deployment instructions.
+
+**Quick summary:**
+- **Frontend**: deploy `frontend/` to Vercel  
+  - Set `NEXT_PUBLIC_WS_URL` environment variable to your backend URL
+- **Backend**: deploy `backend/` to Railway (or similar)  
+  - Set `FRONTEND_ORIGIN` environment variable to your Vercel URL
+  - Set `PORT=3001` and `HOSTNAME=0.0.0.0`  
 
 ### notes and limitations
 

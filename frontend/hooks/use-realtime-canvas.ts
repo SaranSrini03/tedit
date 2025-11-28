@@ -10,11 +10,13 @@ interface UseRealtimeCanvasProps {
     strokeStyle?: string;
     lineWidth?: number;
   }) => void;
+  onRequestCanvasState?: (requesterId: string) => void;
 }
 
 export function useRealtimeCanvas({
   documentId,
   onRemoteDraw,
+  onRequestCanvasState,
 }: UseRealtimeCanvasProps) {
   const socketRef = useRef<Socket | null>(null);
   const isConnectedRef = useRef(false);
@@ -45,6 +47,9 @@ export function useRealtimeCanvas({
       
       // Join the document room
       socket.emit("join-document", documentId);
+      
+      // Request current canvas state from other users
+      socket.emit("request-canvas-state", documentId);
     });
 
     socket.on("disconnect", () => {
@@ -59,6 +64,7 @@ export function useRealtimeCanvas({
       path?: Array<{ x: number; y: number }>;
       strokeStyle?: string;
       lineWidth?: number;
+      userId?: string;
     }) => {
       // Only handle remote events (not our own)
       if (data.userId !== socket.id) {
@@ -71,13 +77,22 @@ export function useRealtimeCanvas({
       onRemoteDraw({ type: "image", dataUrl: data.dataUrl });
     });
 
+    // Listen for canvas state requests from new joiners
+    socket.on("request-canvas-state", (data: { requesterId: string; documentId: string }) => {
+      // This will be handled by the component that has access to the canvas
+      // We'll expose a callback for this
+      if (onRequestCanvasState) {
+        onRequestCanvasState(data.requesterId);
+      }
+    });
+
     return () => {
       if (socketRef.current) {
         socket.emit("leave-document", documentId);
         socket.disconnect();
       }
     };
-  }, [documentId, onRemoteDraw]);
+  }, [documentId, onRemoteDraw, onRequestCanvasState]);
 
   const broadcastDraw = useCallback(
     (data: {
@@ -110,9 +125,23 @@ export function useRealtimeCanvas({
     [documentId]
   );
 
+  const sendCanvasStateToUser = useCallback(
+    (targetUserId: string, dataUrl: string) => {
+      if (socketRef.current && isConnectedRef.current) {
+        socketRef.current.emit("send-canvas-state", {
+          documentId,
+          dataUrl,
+          targetUserId,
+        });
+      }
+    },
+    [documentId]
+  );
+
   return {
     isConnected: isConnectedRef.current,
     broadcastDraw,
     broadcastCanvasUpdate,
+    sendCanvasStateToUser,
   };
 }

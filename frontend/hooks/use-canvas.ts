@@ -47,10 +47,24 @@ export function useCanvas({
       // Full canvas update
       const image = new Image();
       image.onload = () => {
-        context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-        context.fillStyle = "#f8fafc";
-        context.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-        context.drawImage(image, 0, 0, canvas.clientWidth, canvas.clientHeight);
+        // Re-check context in case it changed during async image load
+        const ctx = contextRef.current;
+        const canv = canvasRef.current;
+        if (!ctx || !canv) return;
+        
+        // Get the parent element to use logical dimensions (context is already scaled)
+        const parent = canv.parentElement;
+        const logicalWidth = parent?.clientWidth || canv.clientWidth || canvasWidth;
+        const logicalHeight = parent?.clientHeight || canv.clientHeight || canvasHeight;
+        
+        // Clear and fill using logical dimensions (context coordinate system is already scaled)
+        ctx.clearRect(0, 0, logicalWidth, logicalHeight);
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+        ctx.drawImage(image, 0, 0, logicalWidth, logicalHeight);
+      };
+      image.onerror = () => {
+        console.warn("Failed to load canvas image from remote update");
       };
       image.src = data.dataUrl;
     } else if (data.type === "draw" && data.path && data.path.length > 0) {
@@ -66,12 +80,31 @@ export function useCanvas({
       }
       context.stroke();
     }
-  }, []);
+  }, [canvasWidth, canvasHeight]);
   
-  const { broadcastDraw, broadcastCanvasUpdate } = useRealtimeCanvas({
+  const sendCanvasStateRef = useRef<((targetUserId: string, dataUrl: string) => void) | null>(null);
+
+  const handleRequestCanvasState = useCallback((requesterId: string) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !sendCanvasStateRef.current) return;
+    try {
+      const dataUrl = canvas.toDataURL("image/png");
+      sendCanvasStateRef.current(requesterId, dataUrl);
+    } catch (error) {
+      console.warn("Failed to send canvas state to requester", error);
+    }
+  }, []);
+
+  const { broadcastDraw, broadcastCanvasUpdate, sendCanvasStateToUser } = useRealtimeCanvas({
     documentId,
     onRemoteDraw: enableRealtime ? handleRemoteDraw : () => {},
+    onRequestCanvasState: enableRealtime ? handleRequestCanvasState : undefined,
   });
+
+  // Store sendCanvasStateToUser in ref so callback can access it
+  useEffect(() => {
+    sendCanvasStateRef.current = sendCanvasStateToUser;
+  }, [sendCanvasStateToUser]);
 
   const prepareCanvas = useCallback(() => {
     const canvas = canvasRef.current;
