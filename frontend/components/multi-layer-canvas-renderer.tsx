@@ -73,12 +73,17 @@ export function MultiLayerCanvasRenderer({
         
         containerRef.current?.appendChild(layerCanvas);
         layerCanvasesRef.current.set(layer.id, layerCanvas);
-        onLayerCanvasUpdate(layer.id, layerCanvas);
         
-        // Prepare the layer canvas once it's added to DOM
-        requestAnimationFrame(() => {
-          onPrepareLayerCanvas(layer.id, layerCanvas);
-        });
+        // Add data attribute to identify this canvas's layer
+        layerCanvas.setAttribute('data-layer-id', layer.id);
+        
+        // CRITICAL: Prepare the canvas BEFORE notifying, so it's registered in useMultiLayerCanvas refs
+        // This ensures the canvas is ready for drawing immediately when the layer is created
+        // Call synchronously to avoid timing issues
+        onPrepareLayerCanvas(layer.id, layerCanvas);
+        
+        // Then notify parent components
+        onLayerCanvasUpdate(layer.id, layerCanvas);
       }
     });
 

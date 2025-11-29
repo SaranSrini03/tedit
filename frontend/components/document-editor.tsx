@@ -83,6 +83,8 @@ export function DocumentEditor({
   const handleLayerCanvasUpdate = useCallback((layerId: string, canvas: HTMLCanvasElement | null) => {
     if (canvas) {
       layerStack.setLayerCanvas(layerId, canvas);
+      // Note: prepareLayerCanvas is already called by MultiLayerCanvasRenderer before this
+      // so the canvas should already be registered in useMultiLayerCanvas's refs
     } else {
       layerStack.setLayerCanvas(layerId, null);
     }
@@ -301,14 +303,14 @@ export function DocumentEditor({
   };
 
   // Re-composite when active layer changes to ensure drawings are visible
-  // (But only if we're not currently drawing)
+  // Also ensure new layers are ready before compositing
   useEffect(() => {
     // Small delay to ensure layer switch is complete before compositing
     const timeoutId = setTimeout(() => {
       compositeLayers();
     }, 50);
     return () => clearTimeout(timeoutId);
-  }, [layerStack.activeLayerId, compositeLayers]);
+  }, [layerStack.activeLayerId, layerStack.layers.length, compositeLayers]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#2b2b2b] text-slate-100">

@@ -18,26 +18,10 @@ export function useLayerStack({
 }: UseLayerStackOptions) {
   const storageKeyRef = useRef(`tedit:layers:${documentId}`);
   
+  // Initialize with fallback layers to avoid hydration mismatch
+  // localStorage access will happen in useEffect after mount
   const [layers, setLayers] = useState<Layer[]>(() => {
-    // Try to restore from localStorage first
-    try {
-      const stored = localStorage.getItem(storageKeyRef.current);
-      if (stored) {
-        const parsedLayers = JSON.parse(stored);
-        if (Array.isArray(parsedLayers) && parsedLayers.length > 0) {
-          return parsedLayers.map((layer: Layer, index: number) => ({
-            ...layer,
-            opacity: layer.opacity ?? 100,
-            locked: layer.locked ?? false,
-            order: layer.order ?? index,
-          })).sort((a, b) => a.order - b.order);
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to restore layers from localStorage:", error);
-    }
-    
-    // Fallback to initial layers
+    // Always use initial layers for SSR to prevent hydration mismatch
     return initialLayers.map((layer, index) => ({
       ...layer,
       opacity: layer.opacity ?? 100,
@@ -45,12 +29,42 @@ export function useLayerStack({
       order: layer.order ?? index,
     })).sort((a, b) => a.order - b.order);
   });
-
+  
   // Store canvas elements for each layer
   const layerCanvasesRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const [activeLayerId, setActiveLayerId] = useState<string | null>(
     layers.length > 0 ? layers[0].id : null
   );
+  
+  // Load from localStorage after mount (client-side only)
+  useEffect(() => {
+    // Only run on client
+    if (typeof window === "undefined") return;
+    
+    try {
+      const stored = localStorage.getItem(storageKeyRef.current);
+      if (stored) {
+        const parsedLayers = JSON.parse(stored);
+        if (Array.isArray(parsedLayers) && parsedLayers.length > 0) {
+          const restoredLayers = parsedLayers.map((layer: Layer, index: number) => ({
+            ...layer,
+            opacity: layer.opacity ?? 100,
+            locked: layer.locked ?? false,
+            order: layer.order ?? index,
+          })).sort((a, b) => a.order - b.order);
+          
+          setLayers(restoredLayers);
+          // Set active layer to first layer if we restored layers
+          if (restoredLayers.length > 0) {
+            setActiveLayerId(restoredLayers[0].id);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to restore layers from localStorage:", error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const activeLayer = layers.find((layer) => layer.id === activeLayerId);
 
