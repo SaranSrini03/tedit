@@ -150,9 +150,7 @@ export const menuItems = [
 ];
 
 export const baseLayers: Layer[] = [
-  { id: "layer-bg", name: "Background", type: "Pixel", visible: true },
-  { id: "layer-1", name: "Product hero", type: "Smart object", visible: true },
-  { id: "layer-2", name: "Highlights", type: "Adjustment", visible: true },
+  { id: "layer-bg", name: "Background", type: "Pixel", visible: true, opacity: 100, locked: false, order: 0 },
 ];
 
 export const seedHistory: HistoryEntry[] = [

@@ -10,7 +10,9 @@ import { LayersPanel } from "@/components/layers-panel";
 import { Button } from "@/components/ui/button";
 import { WorkspaceContainer } from "@/components/workspace-container";
 import { CanvasRenderer } from "@/components/canvas-renderer";
-import { useCanvas } from "@/hooks/use-canvas";
+import { useMultiLayerCanvas } from "@/hooks/use-multi-layer-canvas";
+import { useLayerStack } from "@/hooks/use-layer-stack";
+import { MultiLayerCanvasRenderer } from "@/components/multi-layer-canvas-renderer";
 import { baseLayers, seedHistory } from "@/lib/constants";
 import type { ToolId, Layer, HistoryEntry } from "@/lib/types";
 
@@ -37,7 +39,6 @@ export function DocumentEditor({
   const [activeTool, setActiveTool] = useState<ToolId>("brush");
   const [brushSize, setBrushSize] = useState(8);
   const [strokeColor, setStrokeColor] = useState("#38bdf8");
-  const [layers, setLayers] = useState<Layer[]>(baseLayers);
   const [history, setHistory] = useState<HistoryEntry[]>(seedHistory);
   const [brightness, setBrightness] = useState(72);
   const [userZoom, setUserZoom] = useState(1);
@@ -48,17 +49,23 @@ export function DocumentEditor({
   const handActive = isHandTool || spacePressed;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Layer stack management
+  const layerStack = useLayerStack({
+    initialLayers: baseLayers,
+    canvasWidth,
+    canvasHeight,
+    documentId,
+  });
+
   const addImageLayerEntry = useCallback((name: string) => {
-    setLayers((prev) => [
-      {
-        id: crypto.randomUUID(),
-        name: name || `Image ${prev.filter((layer) => layer.type === "Image").length + 1}`,
-        type: "Image",
-        visible: true,
-      },
-      ...prev,
-    ]);
-  }, []);
+    layerStack.addLayer({
+      name: name || `Image ${layerStack.layers.filter((layer) => layer.type === "Image").length + 1}`,
+      type: "Image",
+      visible: true,
+      opacity: 100,
+      locked: false,
+    });
+  }, [layerStack]);
 
   const pushHistory = useCallback((label: string) => {
     const entry: HistoryEntry = {
@@ -72,15 +79,27 @@ export function DocumentEditor({
     setHistory((prev) => [entry, ...prev].slice(0, 6));
   }, []);
 
+  // Handle layer canvas updates
+  const handleLayerCanvasUpdate = useCallback((layerId: string, canvas: HTMLCanvasElement | null) => {
+    if (canvas) {
+      layerStack.setLayerCanvas(layerId, canvas);
+    } else {
+      layerStack.setLayerCanvas(layerId, null);
+    }
+  }, [layerStack]);
+
   const {
-    canvasRef,
+    compositeCanvasRef,
     startDrawing,
     draw,
     stopDrawing,
-    prepareCanvas,
+    prepareCompositeCanvas,
     drawImageOnCanvas,
     restoreCanvas,
-  } = useCanvas({
+    compositeLayers,
+    prepareLayerCanvas,
+    getLayerCanvas,
+  } = useMultiLayerCanvas({
     documentId,
     activeTool,
     brushSize,
@@ -88,16 +107,12 @@ export function DocumentEditor({
     zoom: renderScale * 100,
     canvasWidth,
     canvasHeight,
+    layers: layerStack.layers,
+    activeLayerId: layerStack.activeLayerId,
     onDrawComplete: pushHistory,
+    onLayerCanvasUpdate: handleLayerCanvasUpdate,
+    enableRealtime: true,
   });
-
-  useEffect(() => {
-    prepareCanvas();
-    // Restore saved content after canvas is prepared when dimensions change
-    requestAnimationFrame(() => {
-      restoreCanvas();
-    });
-  }, [prepareCanvas, restoreCanvas, canvasWidth, canvasHeight]);
 
   const adjustBrushSize = (delta: number) => {
     setBrushSize((size) => Math.max(1, Math.min(128, size + delta)));
@@ -181,7 +196,7 @@ export function DocumentEditor({
 
   const handleExport = useCallback(
     (format: "png" | "jpg") => {
-      const canvas = canvasRef.current;
+      const canvas = compositeCanvasRef.current;
       if (!canvas) return;
       const mime = format === "jpg" ? "image/jpeg" : "image/png";
       const quality = format === "jpg" ? 0.92 : undefined;
@@ -204,59 +219,96 @@ export function DocumentEditor({
         quality,
       );
     },
-    [canvasRef, documentId],
+    [compositeCanvasRef, documentId],
   );
 
   const toggleLayerVisibility = (id: string) => {
-    setLayers((prev) =>
-      prev.map((layer) =>
-        layer.id === id ? { ...layer, visible: !layer.visible } : layer,
-      ),
-    );
+    const layer = layerStack.layers.find((l) => l.id === id);
+    if (layer) {
+      layerStack.toggleLayerVisibility(id);
+      pushHistory(`${!layer.visible ? "Showed" : "Hid"} ${layer.name}`);
+      // Re-composite after visibility change
+      requestAnimationFrame(() => {
+        compositeLayers();
+      });
+    }
   };
 
   const addLayer = () => {
-    const newLayer: Layer = {
-      id: crypto.randomUUID(),
-      name: `Layer ${layers.length + 1}`,
+    layerStack.addLayer({
+      name: `Layer ${layerStack.layers.length + 1}`,
       type: "Pixel",
       visible: true,
-    };
-    setLayers((prev) => [newLayer, ...prev]);
+      opacity: 100,
+      locked: false,
+    });
     pushHistory("Added new layer");
   };
 
   const duplicateLayer = (id: string) => {
-    setLayers((prev) => {
-      const target = prev.find((layer) => layer.id === id);
-      if (!target) return prev;
-      const clone: Layer = {
-        ...target,
-        id: crypto.randomUUID(),
-        name: `${target.name} copy`,
-      };
+    const target = layerStack.layers.find((layer) => layer.id === id);
+    if (target) {
+      layerStack.duplicateLayer(id);
       pushHistory(`Duplicated ${target.name}`);
-      return [clone, ...prev];
-    });
+    }
   };
 
   const deleteLayer = (id: string) => {
-    setLayers((prev) => {
-      const target = prev.find((layer) => layer.id === id);
-      if (!target) return prev;
-      pushHistory(`Deleted ${target.name}`);
-      return prev.filter((layer) => layer.id !== id);
+    const target = layerStack.layers.find((layer) => layer.id === id);
+    if (!target) return;
+    
+    // Prevent deleting if it's the only layer (must have at least one layer)
+    if (layerStack.layers.length === 1) {
+      return;
+    }
+    
+    layerStack.deleteLayer(id);
+    pushHistory(`Deleted ${target.name}`);
+    // Re-composite after deletion to remove layer from view
+    requestAnimationFrame(() => {
+      compositeLayers();
     });
   };
 
   const renameLayer = (id: string, name: string) => {
-    setLayers((prev) =>
-      prev.map((layer) =>
-        layer.id === id ? { ...layer, name: name || layer.name } : layer,
-      ),
-    );
+    layerStack.renameLayer(id, name);
     pushHistory(`Renamed layer to ${name || "Untitled"}`);
   };
+
+  const handleReorderLayer = (layerId: string, newOrder: number) => {
+    layerStack.reorderLayer(layerId, newOrder);
+    pushHistory("Reordered layer");
+    // Re-composite after reordering
+    requestAnimationFrame(() => {
+      compositeLayers();
+    });
+  };
+
+  const handleSetLayerOpacity = (layerId: string, opacity: number) => {
+    layerStack.setLayerOpacity(layerId, opacity);
+    // Re-composite after opacity change
+    requestAnimationFrame(() => {
+      compositeLayers();
+    });
+  };
+
+  const handleToggleLayerLock = (layerId: string) => {
+    layerStack.toggleLayerLock(layerId);
+    const layer = layerStack.layers.find((l) => l.id === layerId);
+    if (layer) {
+      pushHistory(`${layer.locked ? "Locked" : "Unlocked"} layer`);
+    }
+  };
+
+  // Re-composite when active layer changes to ensure drawings are visible
+  // (But only if we're not currently drawing)
+  useEffect(() => {
+    // Small delay to ensure layer switch is complete before compositing
+    const timeoutId = setTimeout(() => {
+      compositeLayers();
+    }, 50);
+    return () => clearTimeout(timeoutId);
+  }, [layerStack.activeLayerId, compositeLayers]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#2b2b2b] text-slate-100">
@@ -322,15 +374,20 @@ export function DocumentEditor({
             onZoomChange={handleZoomChange}
             onScaleChange={handleScaleChange}
           >
-            <CanvasRenderer
-              canvasRef={canvasRef}
+            <MultiLayerCanvasRenderer
+              compositeCanvasRef={compositeCanvasRef}
+              layers={layerStack.layers}
               activeTool={activeTool}
               brushSize={brushSize}
               isDrawingDisabled={handActive}
+              canvasWidth={canvasWidth}
+              canvasHeight={canvasHeight}
               onStartDrawing={startDrawing}
               onDraw={draw}
               onStopDrawing={stopDrawing}
               onDropImage={handleDropFile}
+              onLayerCanvasUpdate={handleLayerCanvasUpdate}
+              onPrepareLayerCanvas={prepareLayerCanvas}
             />
           </WorkspaceContainer>
         </div>
@@ -349,13 +406,19 @@ export function DocumentEditor({
           />
 
           <LayersPanel
-            layers={layers}
+            layers={layerStack.layers}
             history={history}
+            activeLayerId={layerStack.activeLayerId}
             onToggleLayerVisibility={toggleLayerVisibility}
+            onSetActiveLayer={layerStack.setActiveLayer}
             onAddLayer={addLayer}
             onDuplicateLayer={duplicateLayer}
             onDeleteLayer={deleteLayer}
             onRenameLayer={renameLayer}
+            onReorderLayer={handleReorderLayer}
+            onSetLayerOpacity={handleSetLayerOpacity}
+            onToggleLayerLock={handleToggleLayerLock}
+            getLayerCanvas={getLayerCanvas}
           />
         </aside>
       </div>

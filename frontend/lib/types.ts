@@ -27,6 +27,10 @@ export interface Layer {
   name: string;
   type: string;
   visible: boolean;
+  opacity: number;
+  locked: boolean;
+  order: number;
+  canvasData?: string; // Base64 image data for this layer
 }
 
 export interface HistoryEntry {
